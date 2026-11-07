@@ -1,6 +1,17 @@
-FROM ultralytics/ultralytics:latest 
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
-WORKDIR /workspace
+# opencv (pulled in by ultralytics) needs these shared libs
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY . /workspace/
+WORKDIR /app
 
+# deps first so this layer is cached until pyproject/uv.lock change
+COPY pyproject.toml uv.lock .python-version ./
+RUN uv sync --frozen --no-install-project --no-dev
+
+COPY main.py dataset.yaml ./
+
+ENV PATH="/app/.venv/bin:$PATH"
+CMD ["sh", "-c", "python main.py && hf sync models hf://buckets/tremgan/plate-weights"]
