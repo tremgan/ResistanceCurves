@@ -1,0 +1,6 @@
+FROM ultralytics/ultralytics:latest 
+
+WORKDIR /workspace
+
+COPY . /workspace/
+
