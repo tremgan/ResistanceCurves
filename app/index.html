@@ -1,0 +1,84 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Resistance Curves</title>
+<style>
+  body { font: 16px system-ui; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+  #drop { border: 2px dashed #888; padding: 2rem; text-align: center; }
+  #drop.over { background: #eee; }
+  video, canvas { width: 100%; margin-top: 1rem; }
+  canvas { cursor: crosshair; }
+</style>
+
+<div id="drop">
+  Drop a video here or <input type="file" id="file" accept="video/*">
+</div>
+<video id="video" controls hidden></video>
+<p id="controls" hidden>
+  Pause on a clear frame, then <button id="setPivot">Set pivot</button>
+  <span id="status"></span>
+</p>
+<canvas id="frame" hidden></canvas>
+
+<script>
+  const drop = document.getElementById('drop');
+  const file = document.getElementById('file');
+  const video = document.getElementById('video');
+  const controls = document.getElementById('controls');
+  const setPivot = document.getElementById('setPivot');
+  const status = document.getElementById('status');
+  const canvas = document.getElementById('frame');
+  const ctx = canvas.getContext('2d');
+
+  let pivot = null;  // {x, y} in video pixels, not screen pixels
+  let frame = null;  // snapshot of the frame the user is clicking on
+
+  // video never leaves the browser: it is played from a local blob URL
+  function load(f) {
+    if (!f || !f.type.startsWith('video/')) return;
+    video.src = URL.createObjectURL(f);
+    video.hidden = false;
+    controls.hidden = false;
+    canvas.hidden = true;
+    pivot = null;
+    status.textContent = '';
+  }
+
+  file.onchange = () => load(file.files[0]);
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = () => drop.classList.remove('over');
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); load(e.dataTransfer.files[0]); };
+
+  // copy the paused frame onto the canvas so the user can click on it
+  setPivot.onclick = () => {
+    canvas.width = video.videoWidth;    // canvas pixels = video pixels
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+    frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    canvas.hidden = false;
+    status.textContent = 'Click the pivot point on the frame below.';
+  };
+
+  canvas.onclick = e => {
+    // the canvas is shown scaled to the page width, so convert click
+    // position from screen pixels back to video pixels
+    const rect = canvas.getBoundingClientRect();
+    pivot = {
+      x: (e.clientX - rect.left) * canvas.width / rect.width,
+      y: (e.clientY - rect.top) * canvas.height / rect.height,
+    };
+    ctx.putImageData(frame, 0, 0);  // erase any previous marker
+    drawCross(pivot);
+    status.textContent = `Pivot: (${pivot.x.toFixed(0)}, ${pivot.y.toFixed(0)}) px`;
+  };
+
+  function drawCross({ x, y }) {
+    const s = canvas.width / 40;  // marker size scales with resolution
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth = s / 5;
+    ctx.beginPath();
+    ctx.moveTo(x - s, y); ctx.lineTo(x + s, y);
+    ctx.moveTo(x, y - s); ctx.lineTo(x, y + s);
+    ctx.stroke();
+  }
+</script>
